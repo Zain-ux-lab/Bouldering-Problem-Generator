@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BoulderIQ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --stone: #eae6dd;
+    --stone-dark: #d8d2c4;
+    --chalk: #f7f5f0;
+    --charcoal: #23211d;
+    --charcoal-soft: #3a372f;
+    --tape: #e8622c;
+    --tape-dark: #c94f1f;
+    --jug: #2563eb;
+    --crimp: #dc2626;
+    --sloper: #16a34a;
+    --foothold: #78716c;
+    --line: #c7c0ae;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--stone);
+    color: var(--charcoal);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    min-height: 100vh;
+  }
+
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  /* ---- Sidebar ---- */
+  aside {
+    background: var(--charcoal);
+    color: var(--chalk);
+    padding: 28px 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .brand .mark {
+    color: var(--tape);
+    font-size: 26px;
+    font-weight: 700;
+  }
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .subtitle {
+    font-size: 12px;
+    color: #a8a396;
+    margin: 2px 0 0;
+    line-height: 1.5;
+  }
+
+  fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #a8a396;
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .angle-toggle {
+    display: flex;
+    gap: 8px;
+  }
+  .angle-toggle button {
+    flex: 1;
+    background: var(--charcoal-soft);
+    border: 1px solid #55503f;
+    color: var(--chalk);
+    padding: 10px 0;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .angle-toggle button.active {
+    background: var(--tape);
+    border-color: var(--tape);
+    color: white;
+  }
+
+  .range-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  input[type="range"] {
+    flex: 1;
+    accent-color: var(--tape);
+  }
+  .range-value {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    width: 28px;
+    text-align: right;
+  }
+
+  #generate-btn {
+    background: var(--tape);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 14px;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.08s ease;
+    letter-spacing: 0.01em;
+  }
+  #generate-btn:hover { background: var(--tape-dark); }
+  #generate-btn:active { transform: scale(0.98); }
+  #generate-btn:disabled { background: #55503f; cursor: wait; }
+
+  .result-card {
+    background: var(--charcoal-soft);
+    border-radius: 10px;
+    padding: 18px;
+    display: none;
+  }
+  .result-card.visible { display: block; }
+  .result-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #a8a396;
+  }
+  .grade-display {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 42px;
+    font-weight: 700;
+    color: var(--tape);
+    line-height: 1.1;
+    margin: 4px 0 2px;
+  }
+  .score-sub {
+    font-size: 12px;
+    color: #a8a396;
+  }
+  .feature-list {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 14px;
+    font-size: 11.5px;
+  }
+  .feature-list div span:first-child { color: #a8a396; display: block; }
+  .feature-list div span:last-child { font-weight: 600; }
+
+  .error-msg {
+    background: #4a2318;
+    color: #ffb4a3;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 12.5px;
+    display: none;
+  }
+  .error-msg.visible { display: block; }
+
+  /* ---- Main wall area ---- */
+  main {
+    padding: 32px 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .wall-frame {
+    background: var(--chalk);
+    border: 3px solid var(--charcoal);
+    border-radius: 4px;
+    position: relative;
+    box-shadow: 0 12px 32px rgba(35,33,29,0.15);
+  }
+
+  .legend {
+    display: flex;
+    gap: 18px;
+    margin-top: 18px;
+    font-size: 11.5px;
+    color: var(--charcoal-soft);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+  .empty-state {
+    color: #9a9384;
+    font-size: 13px;
+    text-align: center;
+    margin-top: 14px;
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <aside>
+    <div class="brand">
+      <span class="mark">◆</span>
+      <div>
+        <h1>BoulderIQ</h1>
+        <p class="subtitle">Generate a bouldering problem and get an estimated difficulty, powered by a graph-search generator and a trained ML model.</p>
+      </div>
+    </div>
+
+    <fieldset>
+      <div>
+        <label>Wall angle</label>
+        <div class="angle-toggle">
+          <button type="button" class="active" data-angle="40">40°</button>
+          <button type="button" data-angle="45">45°</button>
+        </div>
+      </div>
+
+      <div>
+        <label>Min moves: <span id="min-moves-val">6</span></label>
+        <div class="range-row">
+          <input type="range" id="min-moves" min="3" max="15" value="6">
+        </div>
+      </div>
+
+      <div>
+        <label>Max moves: <span id="max-moves-val">10</span></label>
+        <div class="range-row">
+          <input type="range" id="max-moves" min="3" max="20" value="10">
+        </div>
+      </div>
+    </fieldset>
+
+    <button id="generate-btn">Generate Problem</button>
+
+    <div class="error-msg" id="error-msg"></div>
+
+    <div class="result-card" id="result-card">
+      <span class="result-label">Estimated grade</span>
+      <div class="grade-display" id="grade-display">V5</div>
+      <div class="score-sub" id="score-sub">difficulty score 5.16 / 9</div>
+      <div class="feature-list" id="feature-list"></div>
+    </div>
+  </aside>
+
+  <main>
+    <svg id="wall-svg" class="wall-frame" width="480" height="600" viewBox="0 0 244 305"></svg>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:var(--jug)"></span>Jug</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--crimp)"></span>Crimp</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--sloper)"></span>Sloper</span>
+      <span class="legend-item"><span class="legend-dot" style="background:var(--foothold)"></span>Foothold</span>
+    </div>
+    <p class="empty-state" id="empty-state">Click "Generate Problem" to create a route.</p>
+  </main>
+</div>
+
+<script>
+  const API_BASE = "http://127.0.0.1:8000";
+
+  const SVG_NS = "http://www.w3.org/2000/svg";
+  const svg = document.getElementById("wall-svg");
+  const generateBtn = document.getElementById("generate-btn");
+  const errorMsg = document.getElementById("error-msg");
+  const resultCard = document.getElementById("result-card");
+  const gradeDisplay = document.getElementById("grade-display");
+  const scoreSub = document.getElementById("score-sub");
+  const featureList = document.getElementById("feature-list");
+  const emptyState = document.getElementById("empty-state");
+
+  const HOLD_COLORS = {
+    jug: "#2563eb", crimp: "#dc2626",
+    sloper: "#16a34a", foothold: "#78716c",
+  };
+
+  let currentAngle = 40;
+  let wallData = null; // cached full wall layout for the current angle
+
+  Array.from(document.querySelectorAll(".angle-toggle button")).forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".angle-toggle button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentAngle = parseInt(btn.dataset.angle);
+      wallData = null; // force re-fetch for new angle
+      loadWall();
+    });
+  });
+
+  const minMovesInput = document.getElementById("min-moves");
+  const maxMovesInput = document.getElementById("max-moves");
+  minMovesInput.addEventListener("input", () => {
+    document.getElementById("min-moves-val").textContent = minMovesInput.value;
+  });
+  maxMovesInput.addEventListener("input", () => {
+    document.getElementById("max-moves-val").textContent = maxMovesInput.value;
+  });
+
+  function clearSvg() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+  }
+
+  function drawWallOutline() {
+    if (!wallData) return;
+    svg.setAttribute("viewBox", `0 0 ${wallData.width_cm} ${wallData.height_cm}`);
+
+    const centerline = document.createElementNS(SVG_NS, "line");
+    centerline.setAttribute("x1", wallData.width_cm / 2);
+    centerline.setAttribute("y1", 0);
+    centerline.setAttribute("x2", wallData.width_cm / 2);
+    centerline.setAttribute("y2", wallData.height_cm);
+    centerline.setAttribute("stroke", "#c7c0ae");
+    centerline.setAttribute("stroke-dasharray", "3,3");
+    svg.appendChild(centerline);
+  }
+
+  function drawHolds(fadedOnly = true, pathIds = []) {
+    // remove previously drawn holds/path (keep the centerline, which is first child)
+    Array.from(svg.querySelectorAll(".hold, .path-line, .path-label")).forEach(el => el.remove());
+
+    const pathSet = new Set(pathIds);
+
+    wallData.holds.forEach(h => {
+      const isOnPath = pathSet.has(h.id);
+      const circle = document.createElementNS(SVG_NS, "circle");
+      // SVG y grows downward, our wall's y grows upward -- flip it
+      const flippedY = wallData.height_cm - h.y;
+      circle.setAttribute("cx", h.x);
+      circle.setAttribute("cy", flippedY);
+      circle.setAttribute("r", h.size / (isOnPath ? 3.2 : 4.2));
+      circle.setAttribute("fill", HOLD_COLORS[h.hold_type]);
+      circle.setAttribute("opacity", isOnPath ? "1" : "0.25");
+      circle.setAttribute("stroke", isOnPath ? "#23211d" : "none");
+      circle.setAttribute("stroke-width", "0.8");
+      circle.classList.add("hold");
+      svg.appendChild(circle);
+    });
+
+    if (pathIds.length > 0) {
+      const points = pathIds.map(id => {
+        const h = wallData.holds.find(hh => hh.id === id);
+        return `${h.x},${wallData.height_cm - h.y}`;
+      }).join(" ");
+      const polyline = document.createElementNS(SVG_NS, "polyline");
+      polyline.setAttribute("points", points);
+      polyline.setAttribute("fill", "none");
+      polyline.setAttribute("stroke", "#e8622c");
+      polyline.setAttribute("stroke-width", "1.2");
+      polyline.setAttribute("opacity", "0.85");
+      polyline.classList.add("path-line");
+      svg.insertBefore(polyline, svg.querySelector(".hold")); // draw line beneath holds
+    }
+  }
+
+  async function loadWall() {
+    const res = await fetch(`${API_BASE}/wall?angle_deg=${currentAngle}`);
+    wallData = await res.json();
+    clearSvg();
+    drawWallOutline();
+    drawHolds(true, []);
+  }
+
+  async function generateProblem() {
+    generateBtn.disabled = true;
+    generateBtn.textContent = "Generating…";
+    errorMsg.classList.remove("visible");
+
+    try {
+      const res = await fetch(`${API_BASE}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          angle_deg: currentAngle,
+          min_moves: parseInt(minMovesInput.value),
+          max_moves: parseInt(maxMovesInput.value),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || "Generation failed");
+      }
+
+      const problem = await res.json();
+      emptyState.style.display = "none";
+      drawHolds(false, problem.hold_path);
+
+      gradeDisplay.textContent = problem.predicted_grade;
+      scoreSub.textContent = `difficulty score ${problem.predicted_difficulty} / 9`;
+
+      featureList.innerHTML = "";
+      const shown = ["num_moves", "max_move_distance", "direction_changes", "foothold_ratio"];
+      shown.forEach(key => {
+        const div = document.createElement("div");
+        div.innerHTML = `<span>${key.replaceAll("_", " ")}</span><span>${problem.features[key]}</span>`;
+        featureList.appendChild(div);
+      });
+
+      resultCard.classList.add("visible");
+    } catch (e) {
+      errorMsg.textContent = e.message + " — is the backend running at " + API_BASE + "?";
+      errorMsg.classList.add("visible");
+    } finally {
+      generateBtn.disabled = false;
+      generateBtn.textContent = "Generate Problem";
+    }
+  }
+
+  generateBtn.addEventListener("click", generateProblem);
+
+  loadWall().catch(() => {
+    errorMsg.textContent = "Could not reach the backend at " + API_BASE + ". Make sure uvicorn is running.";
+    errorMsg.classList.add("visible");
+  });
+</script>
+
+</body>
+</html>
