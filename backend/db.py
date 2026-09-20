@@ -26,6 +26,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             wall_angle INTEGER NOT NULL,
             hold_path TEXT NOT NULL,       -- JSON list of hand-hold ids, in order
+            start_feet TEXT NOT NULL,      -- JSON list of required starting foothold ids
             foot_suggestions TEXT NOT NULL, -- JSON list, one suggested foothold id (or null) per hand hold
             features TEXT NOT NULL,        -- JSON dict of computed features
             predicted_difficulty REAL NOT NULL,
@@ -37,13 +38,13 @@ def init_db():
     conn.close()
 
 
-def save_problem(wall_angle, hold_path, foot_suggestions, features, predicted_difficulty, predicted_grade):
+def save_problem(wall_angle, hold_path, start_feet, foot_suggestions, features, predicted_difficulty, predicted_grade):
     """Stores one generated problem, returns its new id."""
     conn = get_connection()
     cursor = conn.execute(
-        """INSERT INTO problems (wall_angle, hold_path, foot_suggestions, features, predicted_difficulty, predicted_grade)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        (wall_angle, json.dumps(hold_path), json.dumps(foot_suggestions), json.dumps(features), predicted_difficulty, predicted_grade),
+        """INSERT INTO problems (wall_angle, hold_path, start_feet, foot_suggestions, features, predicted_difficulty, predicted_grade)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (wall_angle, json.dumps(hold_path), json.dumps(start_feet), json.dumps(foot_suggestions), json.dumps(features), predicted_difficulty, predicted_grade),
     )
     conn.commit()
     new_id = cursor.lastrowid
@@ -72,6 +73,7 @@ def _row_to_dict(row):
         "id": row["id"],
         "wall_angle": row["wall_angle"],
         "hold_path": json.loads(row["hold_path"]),
+        "start_feet": json.loads(row["start_feet"]),
         "foot_suggestions": json.loads(row["foot_suggestions"]),
         "features": json.loads(row["features"]),
         "predicted_difficulty": row["predicted_difficulty"],
