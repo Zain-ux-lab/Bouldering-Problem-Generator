@@ -27,6 +27,7 @@ We search for the hand path like this:
 """
 
 import random
+import math
 from generator.graph import build_graph
 from generator.constraints import distance
 from models.wall import HoldType
@@ -68,6 +69,37 @@ def pick_finish_holds(wall, high_band_fraction=0.85):
     return [h for h in hand_holds(wall) if h.y >= threshold]
 
 
+def pick_start_feet(wall, start_a, start_b, max_horizontal_cm=30, max_vertical_below_cm=45):
+    """
+    Finds 1-2 footholds to serve as the REQUIRED starting foot position,
+    below and roughly underneath the two starting hand holds -- matching
+    real board convention (e.g. Kilter: magenta start feet, green start
+    hands). Unlike suggest_footholds (a soft visual aid for mid-route
+    moves), this is a hard requirement: a climbing problem without any
+    start feet isn't really a valid problem.
+    """
+    footholds = [h for h in wall.holds if h.hold_type == HoldType.FOOTHOLD]
+    start_x = (start_a.x + start_b.x) / 2
+    start_y = min(start_a.y, start_b.y)
+
+    candidates = []
+    for f in footholds:
+        if f.y >= start_y:
+            continue  # feet must be below the hands
+        if (start_y - f.y) > max_vertical_below_cm:
+            continue
+        if abs(f.x - start_x) > max_horizontal_cm:
+            continue
+        candidates.append(f)
+
+    candidates.sort(key=lambda f: distance_point(f.x, f.y, start_x, start_y))
+    return [f.id for f in candidates[:2]]  # up to 2 start feet, like the reference board
+
+
+def distance_point(x1, y1, x2, y2):
+    return math.hypot(x1 - x2, y1 - y2)
+
+
 def suggest_footholds(wall, hand_path, max_horizontal_cm=35, max_vertical_below_cm=60):
     """
     For each hand hold in the path, suggest the nearest foothold that's
@@ -96,12 +128,37 @@ def suggest_footholds(wall, hand_path, max_horizontal_cm=35, max_vertical_below_
     return suggestions
 
 
-def generate_problem(wall, min_moves=6, max_moves=10, max_attempts=200,
-                      min_reach_cm=15, max_reach_cm=90):
+def _count_direction_changes(wall, path):
+    """How many times the path's left/right direction flips -- a proxy for
+    how zigzaggy vs. dead-straight the problem is. Local to this file to
+    avoid a circular import with features.py (which imports FROM here)."""
+    holds = [wall.get_hold(hid) for hid in path]
+    changes = 0
+    prev_sign = None
+    for a, b in zip(holds[1:], holds[2:]):  # skip the start-pair span
+        dx = b.x - a.x
+        sign = 1 if dx > 0 else (-1 if dx < 0 else 0)
+        if prev_sign is not None and sign != 0 and sign != prev_sign:
+            changes += 1
+        if sign != 0:
+            prev_sign = sign
+    return changes
+
+
+def generate_problem(wall, min_moves=6, max_moves=10, max_attempts=300,
+                      min_reach_cm=15, max_reach_cm=90, min_direction_changes=2):
     """
-    Returns a list of hand-hold ids representing a valid climbing path
-    (starting with the two-hand start pair), or None if no valid problem
-    could be found after max_attempts tries.
+    Returns a dict: {"hand_path": [...], "start_feet": [...]}, or None if
+    no valid problem could be found after max_attempts tries.
+
+    Two realism requirements enforced here (added after reviewing a real
+    Kilter Board problem):
+    1. The problem must have real starting footholds (not just hand
+       holds floating with no feet) -- pick_start_feet is REQUIRED to
+       find at least one, or that start position is rejected and retried.
+    2. The path must zigzag at least a little (min_direction_changes) --
+       otherwise backtracking search tends to just grab the nearest
+       upward hold every time, producing an unrealistic dead-straight line.
     """
     graph = build_graph(wall, min_reach_cm, max_reach_cm, holds=hand_holds(wall))
     finish_ids = {h.id for h in pick_finish_holds(wall)}
@@ -115,6 +172,10 @@ def generate_problem(wall, min_moves=6, max_moves=10, max_attempts=200,
             return None
         start_a, start_b = start_pair
 
+        start_feet = pick_start_feet(wall, start_a, start_b)
+        if not start_feet:
+            continue  # no real feet available here -- this start position isn't valid, try another
+
         initial_path = [start_a.id, start_b.id]
         initial_visited = {start_a.id, start_b.id}
 
@@ -122,8 +183,13 @@ def generate_problem(wall, min_moves=6, max_moves=10, max_attempts=200,
             graph, start_b.id, finish_ids, min_moves, max_moves,
             path=initial_path, visited=initial_visited,
         )
-        if path is not None:
-            return path
+        if path is None:
+            continue
+
+        if _count_direction_changes(wall, path) < min_direction_changes:
+            continue  # too straight/linear -- reject and try a different start/path
+
+        return {"hand_path": path, "start_feet": start_feet}
 
     return None  # honestly report failure rather than returning a bad result
 
@@ -167,4 +233,3 @@ def _backtrack_search(graph, current_id, finish_ids, min_moves, max_moves,
         visited.remove(next_id)
 
     return None  # every neighbor from here was a dead end
-
